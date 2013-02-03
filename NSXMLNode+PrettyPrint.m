@@ -6,69 +6,66 @@
 //  Copyright (c) 2013 Midstate Spring. All rights reserved.
 //
 
+// Inspired by https://bugs.freedesktop.org/show_bug.cgi?id=32819
+// http://pastebin.com/rKH9UDEe
+
 #import "NSXMLNode+PrettyPrint.h"
 
 #define NSXMLNodePrettyPrintEnabled 1
-#define UseAsterisks 0
+#define UseSimplifiedOutput YES
 
 #if NSXMLNodePrettyPrintEnabled
 
 @implementation NSXMLElement (PrettyPrint)
 
-+ (NSString *)node:(NSXMLNode *) node descriptionWithIndent:(NSString *)indent {
-    
-	NSMutableString *s = [NSMutableString string];
-    
-    if ([node isKindOfClass:[NSXMLElement class]]) {
-#if UseAsterisks
-        [s appendFormat:@"%@* %@", indent, node.name];
-#else
-        [s appendFormat:@"%@<%@", indent, node.name];
-#endif
-        for (NSXMLNode *attribute in [(NSXMLElement *) node attributes]) {
-#if UseAsterisks
-            [s appendFormat:@" %@='%@'", attribute.name, attribute.stringValue];
-#else
-            [s appendFormat:@" %@=\"%@\"", attribute.name, attribute.stringValue];
-#endif
-        }
-    
-        if (node.childCount) {
-#if UseAsterisks
-//            [s appendString:@"\n"];
-#else
-            [s appendString:@">"];
-#endif
-            
-#if UseAsterisks
-            NSString *childIndent = [indent stringByAppendingString:@"   "];
-#else
-            NSString *childIndent = [indent stringByAppendingString:@"    "];
-#endif
-            
++ (NSString *)_descriptionForNode:(NSXMLNode *) node indent:(NSString *) indent simplified:(BOOL) simplified {
+	NSMutableString *result = [NSMutableString string];
+    NSString *childIndent = [indent stringByAppendingString:@"    "];
+
+    if (simplified) {
+        
+        if ([node isKindOfClass:[NSXMLElement class]]) {
+            [result appendFormat:@"%@* %@", indent, node.name];
+            for (NSXMLNode *attribute in [(NSXMLElement *) node attributes])
+                [result appendFormat:@" %@='%@'", attribute.name, attribute.stringValue];
             for (NSXMLElement *child in node.children)
-                [s appendFormat:@"\n%@", [self node:child descriptionWithIndent:childIndent]];
-            
-#if !UseAsterisks
-            [s appendFormat:@"\n%@</%@>", indent, node.name];
-#endif
+                [result appendFormat:@"\n%@", [self _descriptionForNode:child
+                                                                 indent:childIndent
+                                                             simplified:simplified]];
         }
+        else if (node.stringValue.length)
+            [result appendFormat:@"%@%@", indent, node.stringValue];
+        
+    } else {
+        
+        if ([node isKindOfClass:[NSXMLElement class]]) {
+            [result appendFormat:@"%@<%@", indent, node.name];
+            for (NSXMLNode *attribute in [(NSXMLElement *) node attributes])
+                [result appendFormat:@" %@=\"%@\"", attribute.name, attribute.stringValue];
+            
+            if (node.childCount) {
+                [result appendString:@">"];
+                NSString *childIndent = [indent stringByAppendingString:@"    "];
+                for (NSXMLElement *child in node.children)
+                    [result appendFormat:@"\n%@", [self _descriptionForNode:child
+                                                                     indent:childIndent
+                                                                 simplified:simplified]];
+                [result appendFormat:@"\n%@</%@>", indent, node.name];
+            }
+        }
+        else if (node.stringValue.length)
+            [result appendFormat:@"%@%@", indent, node.stringValue];
+        else
+            [result appendString:@"/>"];
+
     }
-	else if (node.stringValue.length) {
-		[s appendFormat:@"%@%@", indent, node.stringValue];
-	}
-#if !UseAsterisks
-	else [s appendString:@"/>"];
-#endif
     
-	return s;
+	return result;
 }
 
 - (NSString *)description
 {
-    NSLog(@"original: %@", [super description]);
-    NSLog(@"mine: %@", [self.class node:self descriptionWithIndent:@""]);
-    return @"foo";
+    return [self.class _descriptionForNode:self indent:@"" simplified:UseSimplifiedOutput];
 }
 
 @end
